@@ -6,10 +6,17 @@
 
 #define START_PRINTABLE_ASCII 32
 #define NUM_PRINTABLE_ASCII 95
+#define ANY_SYMBOL 0
 
 #define STATE_START 0x1
 #define STATE_INNER 0x10
 #define STATE_FINAL 0x100
+
+#define FLAG_BRACE_OPEN 0x1
+#define FLAG_BRACE_CLOSE 0x10
+#define FLAG_ASTERISK 0x100
+
+#define STATE_STACK_SIZE 256
 
 /* NFA data structure */
 typedef struct _nfa_transition {
@@ -40,8 +47,6 @@ typedef struct _type_nfa {
     nfa_state *start_state;
     nfa_state *current_state;
     nfa_state_group state_list;
-    nfa_state *saved_state;
-    char saved_symbol;
     unsigned int num_current_states;
 } type_nfa;
 

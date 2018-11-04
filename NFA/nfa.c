@@ -143,13 +143,18 @@ static int nfa_compile_create_transition(type_nfa *nfa,
     if (st_gp == NULL)
     {
         st_gp = nfa_compile_create_state_group();
+        if (st_gp == NULL)
+        {
+            fprintf(stderr, "error creating state trasition\n");
+            return 0;
+        }
         src_st->transitions[(int)ch] = st_gp;
     }
     
     if (st_gp->num_states == MAX_STATES)
     {
         fprintf(stderr, "error creating state trasition: MAX_STATES reached\n");
-        return 0; 
+        return 0;
     }
     
     // add the state
@@ -160,16 +165,23 @@ static int nfa_compile_create_transition(type_nfa *nfa,
 int nfa_compile(type_nfa *nfa, char *regex, unsigned int regex_size)
 {
     int i;
-    int brace_flag, saved;
+    int flag, save_count;
+    int brace_open_num = 0, brace_close_num = 0;
     nfa_state *new_state = NULL;
+    nfa_state *before_state = NULL;
+    nfa_state *ast_before_state = NULL;
+    char current_symbol;
+    nfa_state *state_stack[STATE_STACK_SIZE] = {NULL,};
+    char symbol_stack[STATE_STACK_SIZE] = {0, };
+    
     
     if (nfa == NULL)
     {
         fprintf(stderr, "error in nfa_compile(): nfa not initiated\n");
         return 0;
     }
-    
-    brace_flag = 0;
+    save_count = 0;
+    flag = 0;
     nfa->num_current_states = 0;
     /* make start state */
     nfa->start_state = nfa_compile_create_state(nfa, 0, nfa->num_current_states, STATE_START);
@@ -180,6 +192,7 @@ int nfa_compile(type_nfa *nfa, char *regex, unsigned int regex_size)
     }
     nfa->current_state = nfa->start_state;
     nfa->num_current_states++;
+    current_symbol = 0;
     
     // chew up regular expressions
     for (i=0; i<regex_size; i++)
@@ -194,10 +207,7 @@ int nfa_compile(type_nfa *nfa, char *regex, unsigned int regex_size)
         if ((regex[i] >= 97) && (regex[i] <= 122)) 
         {
             // create a new state
-            if (i == (regex_size-1))
-                new_state = nfa_compile_create_state(nfa, regex[i], nfa->num_current_states, STATE_FINAL);
-            else
-                new_state = nfa_compile_create_state(nfa, regex[i], nfa->num_current_states, STATE_INNER);
+            new_state = nfa_compile_create_state(nfa, regex[i], nfa->num_current_states, STATE_INNER);
             
             if (new_state == NULL)
             {
@@ -208,46 +218,89 @@ int nfa_compile(type_nfa *nfa, char *regex, unsigned int regex_size)
             nfa->state_list.nfa_states[nfa->state_list.num_states++] = new_state;
             
             // make a transition
-            nfa_compile_create_transition(nfa, nfa->current_state, new_state, regex[i]);
-            nfa->current_state = new_state;
-            
-            // check for grouping (braces)
-            if ((brace_flag == 1) && (saved == 0))
+            if (flag & FLAG_ASTERISK)
             {
-                nfa->saved_state = new_state;
-                nfa->saved_symbol = regex[i];
-                saved = 1;
+                nfa_compile_create_transition(nfa, nfa->current_state, new_state, regex[i]);
+                // also can be skipped
+                nfa_compile_create_transition(nfa, ast_before_state, new_state, regex[i]);
+                flag &= ~FLAG_ASTERISK;
             }
-            else if (brace_flag == 2)
-                brace_flag = 0;
+            else
+                nfa_compile_create_transition(nfa, nfa->current_state, new_state, regex[i]);
+            
+            before_state = nfa->current_state;
+            nfa->current_state = new_state;
+            current_symbol = regex[i];
+            
+            // save symbols for braces
+            if (flag & FLAG_BRACE_OPEN)
+            {
+                int i;
+                for (i=0; i<brace_open_num; i++)
+                {
+                    state_stack[save_count] = nfa->current_state;
+                    symbol_stack[save_count] = current_symbol;
+                    save_count++;
+                }
+                flag &= ~FLAG_BRACE_OPEN;
+            }
+            if (flag & FLAG_BRACE_CLOSE)
+            {
+                save_count--; brace_open_num--; brace_close_num--;
+                flag &= ~FLAG_BRACE_CLOSE;
+            }
+
+            if (flag & FLAG_ASTERISK)
+            {
+                flag &= ~FLAG_ASTERISK;
+            }
         }
         else if (regex[i] == 42) // closure (ex '*')
         {
             // TODO : check previous input
             // TODO : implement greediness?
-            
-            if (brace_flag == 0)
+            if (flag & FLAG_BRACE_CLOSE)
             {
-                if (nfa_compile_create_transition(n
-                fa, nfa->current_state, nfa->current_state, regex[i-1]) == 1)
-                    fprintf(stdout, "Making a circle for [%c]\n", regex[i-1]);
+                if (nfa_compile_create_transition(nfa, nfa->current_state, state_stack[save_count - 1], symbol_stack[save_count - 1]) == 1)
+                    fprintf(stdout, "Making a circle for [%c]\n", symbol_stack[save_count - 1]);
+                ast_before_state = state_stack[save_count - 1];
+                save_count--; brace_open_num--; brace_close_num--;
+                flag &= ~FLAG_BRACE_CLOSE;
             }
-            else if (brace_flag == 2)
+            else 
             {
-                if (nfa_compile_create_transition(nfa, nfa->current_state, nfa->saved_state, nfa->saved_symbol) == 1)
-                    fprintf(stdout, "Making a circle for [%c]\n", nfa->saved_symbol);
-                brace_flag = 0;
+                if (nfa_compile_create_transition(nfa, nfa->current_state, before_state, current_symbol) == 1)
+                    fprintf(stdout, "Making a circle for [%c] (no brace)\n", current_symbol);
+                ast_before_state = before_state;
             }
+            flag |= FLAG_ASTERISK;
         }
         else if (regex[i] == 40) // group (ex '(')
         {
-            brace_flag = 1;
+            brace_open_num++;
+            flag |= FLAG_BRACE_OPEN;
         }
         else if (regex[i] == 41) // group (ex ')')
         {
-            brace_flag = 2;
+            if (flag & FLAG_BRACE_CLOSE)
+            {
+                save_count--; brace_open_num--; brace_close_num--;
+            }
+            brace_close_num++;
+            flag |= FLAG_BRACE_CLOSE;
+            if (flag & FLAG_ASTERISK)
+                flag &= ~FLAG_ASTERISK;
         }
         // TODO : union, OR
+        if (i == (regex_size-1))
+        {
+            nfa->current_state->type = STATE_FINAL;
+        }
+    }
+    if (brace_open_num != brace_close_num)
+    {
+        fprintf(stderr, "brace numbers do not match!\n");
+        return 0;
     }
     fprintf(stdout, "regex to nfa compile finished\n");
     return 1;
@@ -265,6 +318,15 @@ static void nfa_process_one_input(type_nfa *nfa, nfa_state_group *cur_states, nf
     for (i=0; i<cur_states->num_states; i++)
     {
         tmp_st_gp = cur_states->nfa_states[i]->transitions[(int)ch];
+        if (tmp_st_gp == NULL) continue;
+        for (j=0; j<tmp_st_gp->num_states; j++)
+        {
+            next_states->nfa_states[next_states->num_states++] = tmp_st_gp->nfa_states[j];
+        }
+    }
+    for (i=0; i<cur_states->num_states; i++)
+    {
+        tmp_st_gp = cur_states->nfa_states[i]->transitions[ANY_SYMBOL];
         if (tmp_st_gp == NULL) continue;
         for (j=0; j<tmp_st_gp->num_states; j++)
         {
