@@ -6,7 +6,7 @@
 int main(int argc, char **argv)
 {
     type_nfa *nfa = NULL;
-    //type_dfa *dfa = NULL;
+    type_dfa *dfa = NULL;
     char regex_buffer[256] = {0, };
     char input_buffer[256] = {0, };
     int scan_result;
@@ -26,13 +26,13 @@ int main(int argc, char **argv)
         fprintf(stderr, "Fail in nfa_compile()\n");
         return 0;
     }
-    /*
+
     if ((dfa = nfa_to_dfa(nfa)) == NULL)
     {
         fprintf(stderr, "Fail in nfa_to_dfa()\n");
         return 0;
-    }*/
-    
+    }
+
     while (1)
     {
         printf("input string: ");
@@ -43,14 +43,27 @@ int main(int argc, char **argv)
         if (scan_result == 1)
         {
             // found
-            fprintf(stdout, "NFA Accepted\n");
+            fprintf(stdout, "Accepted by NFA\n");
         }
         else
         {
             // not found
-            fprintf(stdout, "NFA NOT Accepted\n");
+            fprintf(stdout, "NOT Accepted by NFA\n");
+        }
+        
+        scan_result = dfa_scan(dfa, input_buffer, strlen(input_buffer));
+        if (scan_result == 1)
+        {
+            // found
+            fprintf(stdout, "Accepted by DFA\n");
+        }
+        else
+        {
+            // not found
+            fprintf(stdout, "NOT Accepted by DFA\n");
         }
     }
     nfa_clean(nfa);
+    dfa_clean(dfa);
 	return 1;
 }

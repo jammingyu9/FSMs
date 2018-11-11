@@ -2,7 +2,7 @@
 <CodeLite_Workspace Name="FSMs" Database="" Version="10.0.0">
   <Project Name="NFA" Path="NFA/NFA.project" Active="Yes"/>
   <BuildMatrix>
-    <WorkspaceConfiguration Name="Debug" Selected="yes">
+    <WorkspaceConfiguration Name="Debug" Selected="no">
       <Environment/>
       <Project Name="NFA" ConfigName="Debug"/>
     </WorkspaceConfiguration>

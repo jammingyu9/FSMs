@@ -1,1 +1,1 @@
-./Debug/main.c.o ./Debug/nfa.c.o   
+./Release/nfa.c.o ./Release/main.c.o

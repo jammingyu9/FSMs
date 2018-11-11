@@ -14,12 +14,11 @@
 
 #define FLAG_BRACE_OPEN 0x1
 #define FLAG_BRACE_CLOSE 0x10
-#define FLAG_ASTERISK 0x100
 
 #define STATE_STACK_SIZE 256
 
 /* NFA data structure */
-typedef struct _nfa_transition {
+typedef struct nfa_transition {
     char input;
     int dst_id;
 } nfa_transition;
@@ -27,7 +26,7 @@ typedef struct _nfa_transition {
 // when it is scanned, the group of states of the same level are maintained
 typedef struct nfa_state nfa_state;
 
-typedef struct _nfa_state_group {
+typedef struct nfa_state_group {
     nfa_state *nfa_states[MAX_STATES];
     unsigned int num_states;
 } nfa_state_group;
@@ -38,7 +37,7 @@ struct nfa_state {
     // need allocation
     nfa_state_group *transitions[MAX_TRANSITIONS];
 };
-typedef struct _type_nfa {
+typedef struct type_nfa {
     // symbols
     char *symbols;
     unsigned int num_symbols;
@@ -51,33 +50,38 @@ typedef struct _type_nfa {
 } type_nfa;
 
 /* DFA data structure */
-/*
-typedef struct _dfa_transition {
+typedef struct dfa_transition {
     char input;
     int dst_id;
 } dfa_transition;
 
 typedef struct dfa_state dfa_state;
-struct dfa_state {
+typedef struct dfa_state {
     int id;
     int type;
     
-    dfa_state
-};
+    dfa_state *transitions[MAX_TRANSITIONS];
+} dfa_state;
 
-typedef struct _type_dfa {
+typedef struct type_dfa {
     // symbols
     char *symbols;
     unsigned int num_symbols;
     
     // states
     dfa_state *start_state;
-    dfa_state *current_state;
-    dfa_state *saved_state;
-    char saved_symbol;
+    dfa_state *dfa_states[MAX_STATES];
     unsigned int num_current_states;
 } type_dfa;
-*/
+
+/* Mapping of DFA state <=> NFA state group
+ * used temporarily in conversion process
+ */
+typedef struct nfa_dfa_mapped_state nfa_dfa_mapped_state;
+typedef struct nfa_dfa_mapped_state {
+    nfa_state_group *n_st_gp;
+    dfa_state *d_state;
+} nfa_dfa_mapped_state;
 
 
 int nfa_init(type_nfa **);
@@ -93,6 +97,12 @@ int nfa_scan(type_nfa *,
 
 void nfa_clean(type_nfa *);
 
-//type_dfa *nfa_to_dfa(type_nfa *);
+type_dfa *nfa_to_dfa(type_nfa *);
+
+int dfa_scan(type_dfa*,
+             char *,
+             unsigned int);
+
+void dfa_clean(type_dfa *);
 
 #endif
